@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>MemeRadar AI</title>
+<style>
+:root{--bg:#0b0d12;--card:#141821;--card2:#1b2130;--line:#252c3d;--tx:#e8ecf4;--mut:#8b94a8;--acc:#7c5cff;--g:#2ed48a;--y:#f5b942;--r:#ff5d6c;color-scheme:dark}
+*{box-sizing:border-box;margin:0}html,body{background:var(--bg);color:var(--tx);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+body{padding:env(safe-area-inset-top,0) 0 calc(72px + env(safe-area-inset-bottom,0))}
+header{padding:14px 16px 8px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+h1{font-size:19px}h1 span{color:var(--acc)}
+.pill{font-size:11px;padding:3px 8px;border-radius:99px;background:var(--card2);color:var(--mut);white-space:nowrap}
+.pill.live{color:var(--g)}.pill.err{color:var(--r)}
+main{max-width:720px;margin:auto;padding:0 12px}
+.tab{display:none}.tab.on{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin:10px 0}
+.row{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.mut{color:var(--mut);font-size:13px}.sm{font-size:12px}
+button,input{font:inherit;color:var(--tx)}
+button{background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:8px 12px;cursor:pointer}
+button.p{background:var(--acc);border-color:var(--acc)}
+input[type=text]{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px;margin:4px 0}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:#10131bf2;border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0);backdrop-filter:blur(8px)}
+nav button{flex:1;border:0;border-radius:0;background:none;color:var(--mut);padding:10px 2px;font-size:11px}
+nav button b{display:block;font-size:18px;font-weight:400}nav button.on{color:var(--acc)}
+.badge{font-size:11px;font-weight:700;padding:3px 8px;border-radius:99px}
+.BUY{background:#2ed48a22;color:var(--g)}.WATCH{background:#f5b94222;color:var(--y)}.AVOID{background:#ff5d6c22;color:var(--r)}
+.sc{font-weight:700;font-size:18px}
+.bar{height:5px;background:var(--card2);border-radius:9px;margin:8px 0;overflow:hidden}.bar i{display:block;height:100%}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}.chips span{font-size:12px;background:var(--card2);padding:2px 8px;border-radius:8px}
+.up{color:var(--g)}.dn{color:var(--r)}
+ul{padding-left:18px}li{margin:3px 0;font-size:13px}
+a{color:var(--acc)}
+.filters{display:flex;gap:6px;overflow-x:auto;padding:4px 0}.filters button{padding:5px 11px;white-space:nowrap;font-size:13px}.filters button.on{background:var(--acc);border-color:var(--acc)}
+pre{background:var(--bg);padding:10px;border-radius:10px;overflow-x:auto;font-size:11px;white-space:pre-wrap;word-break:break-all}
+details summary{cursor:pointer;color:var(--acc);font-size:13px}
+.note{border-left:3px solid var(--y);padding:6px 10px;font-size:12.5px;color:var(--mut);background:var(--card);border-radius:6px;margin:10px 0}
+</style></head><body>
+<header><h1>Meme<span>Radar</span> AI</h1><span id="status" class="pill">not scanned</span></header>
+<main>
+<section id="scan" class="tab on">
+ <div class="row"><button class="p" id="go">Scan trending</button><label class="mut sm"><input type="checkbox" id="auto"> auto every 60s</label></div>
+ <div class="filters" id="filters"></div><div id="tokens"></div>
+</section>
+<section id="trend" class="tab"><p class="mut">Tokens whose recent trading pace is faster than their longer-term pace (from the current scan).</p><div id="trendList"></div></section>
+<section id="wallets" class="tab">
+ <p class="mut">Enter up to three Solana wallet addresses. Recent transactions are read from a public RPC.</p>
+ <div class="card"><input type="text" id="w0" placeholder="Wallet 1"><input type="text" id="w1" placeholder="Wallet 2"><input type="text" id="w2" placeholder="Wallet 3">
+ <div class="row"><button class="p" id="wsave">Save &amp; refresh</button><span class="mut sm" id="wstat"></span></div></div>
+ <div id="wout"></div>
+</section>
+<section id="alerts" class="tab">
+ <div class="row"><b>Alert dashboard</b><button id="clr">Clear</button></div>
+ <div id="alist"></div>
+ <div class="card"><b>Alert types</b>
+  <div class="mut"><label><input type="checkbox" data-t="promising" checked> Promising tokens</label><br><label><input type="checkbox" data-t="wallet" checked> Wallet buys</label><br><label><input type="checkbox" data-t="liquidity" checked> Liquidity drops (≥30% between scans)</label></div></div>
+ <div class="card"><b>Telegram (free)</b>
+  <p class="mut sm">Status: <span id="tgs">not configured – needs a backend</span>. Each alert has a “Send to Telegram” button that works without any setup. Automatic push needs a tiny relay so your bot token never sits in this page.</p>
+  <input type="text" id="relay" placeholder="Relay URL (your Cloudflare Worker), optional">
+  <details><summary>Relay setup (Cloudflare Worker)</summary>
+  <p class="mut sm">1) Create a bot with @BotFather. 2) Create a Worker and add secrets BOT_TOKEN and CHAT_ID. 3) Paste this code, deploy, and put the Worker URL above.</p>
+<pre>const cors={'access-control-allow-origin':'*','access-control-allow-headers':'*'};
+export default{async fetch(r,env){
+if(r.method==='OPTIONS')return new Response(null,{headers:cors});
+const{text}=await r.json();
+await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/sendMessage`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:env.CHAT_ID,text})});
+return new Response('ok',{headers:cors})}}</pre></details></div>
+ <div class="card"><b>Solana RPC</b><input type="text" id="rpc"><p class="mut sm">The default public RPC is rate-limited. A free Helius or QuickNode endpoint works better, but it contains a key: only paste it on a copy of this page that you host privately.</p></div>
+</section>
+</main>
+<div class="note" style="max-width:696px;margin:10px auto">Not financial advice. Scores come from simple rules on public data and can be wrong; they never guarantee profit. Live trading is disabled. Data is shown only when fetched live from DEX Screener and Solana RPC.</div>
+<nav id="nav"><button data-tab="scan" class="on"><b>◎</b>Scanner</button><button data-tab="trend"><b>↗</b>Trends</button><button data-tab="wallets"><b>▣</b>Wallets</button><button data-tab="alerts"><b>🔔</b><span id="ac">Alerts</span></button></nav>
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const S={get:(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v??d}catch{return d}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const DS='https://api.dexscreener.com',clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
+const usd=n=>n>=1e6?'$'+(n/1e6).toFixed(2)+'M':n>=1e3?'$'+(n/1e3).toFixed(1)+'K':'$'+Math.round(n||0);
+const price=p=>{p=+p;return !p?'–':p>=1?'$'+p.toFixed(3):'$'+p.toFixed(10).replace(/0+$/,'').slice(0,12)};
+const pc=n=>n==null?'–':`<span class="${n>=0?'up':'dn'}">${n>=0?'+':''}${n.toFixed(0)}%</span>`;
+let tokens=[],sec=S.get('sec',{}),filter='all',open=null,alerts=S.get('alerts',[]),cfg=S.get('cfg',{rpc:'https://api.mainnet-beta.solana.com',relay:'',off:{}}),timer;
+const fj=async(u,o)=>{const r=await fetch(u,o);if(!r.ok)throw new Error('HTTP '+r.status);return r.json()};
+const rpc=async(m,p)=>{const j=await fj(cfg.rpc,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:m,params:p})});if(j.error)throw new Error(j.error.message);return j.result};
+
+// ---------- analysis ----------
+function analyze(p){
+ const m=p.baseToken.address,s=sec[m],R=[],liq=p.liquidity?.usd||0,v=p.volume||{},c=p.priceChange||{},t=p.txns?.h1||{buys:0,sells:0};
+ let pts=0;const add=(n,ok,txt)=>{pts+=n;R.push({ok,txt})};
+ add(liq>=1e5?25:liq>=5e4?20:liq>=2e4?14:liq>=1e4?8:liq>=5e3?3:0,liq>=2e4?true:liq>=1e4?null:false,`Liquidity ${usd(liq)}${liq<1e4?' – very thin, easy to manipulate and hard to exit':liq<2e4?' – modest':''}`);
+ const turn=liq?(v.h24||0)/liq:0;
+ add(turn>=.5&&turn<=8?15:turn>8&&turn<=20?8:turn>=.2?8:2,turn>=.5&&turn<=8?true:turn>8?null:false,`24h volume ${usd(v.h24)} is ${turn.toFixed(1)}× liquidity${turn>8?' – unusually high, may include wash trading':turn<.2?' – low activity':''}`);
+ const h1=c.h1??0,h6=c.h6??0;let mo=8;if(h1>2)mo+=6;if(h6>5)mo+=6;if(h1>200)mo=Math.min(mo,6);if(h1<-15)mo=0;
+ add(mo,mo>=14?true:mo>=6?null:false,`Momentum: 1h ${h1.toFixed(0)}%, 6h ${h6.toFixed(0)}%${h1>200?' – overextended, high reversal risk':''}`);
+ const n=t.buys+t.sells,bp=n?t.buys/n:0;
+ add(n<30?3:bp>=.55?10:bp>=.45?6:2,n>=30&&bp>=.55?true:n<30?null:false,n<30?`Only ${n} trades in the last hour – weak signal`:`Buy share last hour: ${(bp*100).toFixed(0)}% of ${n} trades`);
+ const age=p.pairCreatedAt?(Date.now()-p.pairCreatedAt)/36e5:null;
+ add(age==null?4:age<1?2:age<6?4:age<24?7:10,age>=24?true:age>=6?null:false,age==null?'Pair age unknown':`Pair age ${age<48?age.toFixed(1)+'h':(age/24).toFixed(1)+'d'}${age<6?' – brand new, highest rug risk':''}`);
+ let flags=0;
+ if(s&&!s.err){let x=20;
+  if(s.mintAuth){x-=8;flags++}if(s.freezeAuth){x-=8;flags++}
+  if(s.top1>.2){x-=8;flags++}else if(s.top10>.6)x-=4;
+  add(clamp(x,0,20),flags?false:true,`Security: mint authority ${s.mintAuth?'ACTIVE (supply can be inflated)':'revoked'}, freeze authority ${s.freezeAuth?'ACTIVE (wallets can be frozen)':'revoked'}`);
+  R.push({ok:s.top1>.2?false:s.top10>.6?null:true,txt:`Top holder ${(s.top1*100).toFixed(1)}%, top 10 ${(s.top10*100).toFixed(1)}% (may include liquidity pools, so treat as an upper bound)`});
+  (s.risks||[]).forEach(r=>R.push({ok:r.level==='danger'?false:null,txt:'RugCheck: '+r.name}));
+ }else{add(8,null,s?.err?'Security check failed: '+s.err:'Security & holders not checked yet – run Deep check');}
+ let label=pts>=70?'BUY':pts>=45?'WATCH':'AVOID';
+ if(!s||s.err){if(label==='BUY')label='WATCH'}
+ if(liq<1e4||flags>=2)label='AVOID';
+ return{score:Math.round(pts),label,R,liq,age,v,c,t,checked:!!s&&!s.err};
+}
+const LBL={BUY:'BUY CANDIDATE',WATCH:'WATCH',AVOID:'AVOID'};
+
+// ---------- scanner ----------
+async function scan(){
+ const st=$('#status');st.className='pill';st.textContent='scanning…';
+ try{
+  const src=await Promise.allSettled([`${DS}/token-boosts/top/v1`,`${DS}/token-boosts/latest/v1`,`${DS}/token-profiles/latest/v1`].map(u=>fj(u)));
+  const mints=[...new Set(src.flatMap(r=>r.status==='fulfilled'?r.value:[]).filter(x=>x.chainId==='solana').map(x=>x.tokenAddress))].slice(0,30);
+  if(!mints.length)throw new Error('no Solana tokens returned');
+  const pairs=await fj(`${DS}/tokens/v1/solana/${mints.join(',')}`),best={};
+  pairs.forEach(p=>{const k=p.baseToken.address;if(!best[k]||(p.liquidity?.usd||0)>(best[k].liquidity?.usd||0))best[k]=p});
+  tokens=Object.values(best).map(p=>({p,a:analyze(p)}));
+  checkAlerts();render();
+  st.className='pill live';st.textContent='● live · DEX Screener · '+new Date().toLocaleTimeString();
+ }catch(e){st.className='pill err';st.textContent='fetch failed';
+  $('#tokens').innerHTML=`<div class="card"><b>Couldn’t load live data</b><p class="mut">${esc(e.message)}. This usually means you are offline, rate-limited, or the page is running somewhere that blocks requests to api.dexscreener.com (some sandboxed previews do). Open the file in a normal browser or host it on your own site.</p></div>`}
+}
+function render(){
+ const cnt=k=>k==='all'?tokens.length:tokens.filter(x=>x.a.label===k).length;
+ $('#filters').innerHTML=[['all','All'],['BUY','Buy candidate'],['WATCH','Watch'],['AVOID','Avoid']].map(([k,n])=>`<button data-f="${k}" class="${filter===k?'on':''}">${n} (${cnt(k)})</button>`).join('');
+ const list=tokens.filter(x=>filter==='all'||x.a.label===filter).sort((a,b)=>b.a.score-a.a.score);
+ $('#tokens').innerHTML=list.map(({p,a})=>{const m=p.baseToken.address,col=a.label==='BUY'?'var(--g)':a.label==='WATCH'?'var(--y)':'var(--r)';
+  return `<div class="card" data-m="${m}"><div class="row"><div><b>${esc(p.baseToken.symbol)}</b> <span class="mut sm">${esc(p.baseToken.name).slice(0,24)}</span><div class="mut sm">${price(p.priceUsd)}</div></div><div style="text-align:right"><span class="sc">${a.score}</span><span class="mut sm">/100</span><br><span class="badge ${a.label}">${LBL[a.label]}</span></div></div>
+  <div class="bar"><i style="width:${a.score}%;background:${col}"></i></div>
+  <div class="chips"><span>Liq ${usd(a.liq)}</span><span>Vol24 ${usd(a.v.h24)}</span><span>1h ${pc(a.c.h1)}</span><span>24h ${pc(a.c.h24)}</span>${a.checked?'<span>✔ checked</span>':''}</div>
+  ${open===m?`<ul>${a.R.map(r=>`<li>${r.ok===true?'✅':r.ok===false?'⚠️':'➖'} ${esc(r.txt)}</li>`).join('')}</ul>
+  <div class="row"><button class="p" data-deep="${m}">Deep check</button><a href="${esc(p.url)}" target="_blank" rel="noopener">DEX Screener</a><button data-copy="${m}">Copy mint</button></div>
+  <p class="mut sm">Rule-based estimate of risk, not a prediction. You can lose everything in memecoins.</p>`:'<div class="mut sm">Tap for analysis</div>'}</div>`}).join('')||'<p class="mut">Tap “Scan trending” to load live tokens.</p>';
+ renderTrend();
+}
+async function deep(m){
+ const b=document.querySelector(`[data-deep="${m}"]`);if(b)b.textContent='Checking…';
+ try{
+  const [acc,sup,lg]=await Promise.all([rpc('getAccountInfo',[m,{encoding:'jsonParsed'}]),rpc('getTokenSupply',[m]),rpc('getTokenLargestAccounts',[m])]);
+  const i=acc.value.data.parsed.info,tot=sup.value.uiAmount||1,h=lg.value.map(x=>x.uiAmount/tot);
+  let risks=[];try{const r=await fj(`https://api.rugcheck.xyz/v1/tokens/${m}/report/summary`);risks=(r.risks||[]).slice(0,5)}catch{}
+  sec[m]={mintAuth:!!i.mintAuthority,freezeAuth:!!i.freezeAuthority,top1:h[0]||0,top10:h.slice(0,10).reduce((a,b)=>a+b,0),risks};
+ }catch(e){sec[m]={err:e.message}}
+ S.set('sec',sec);tokens=tokens.map(x=>x.p.baseToken.address===m?{p:x.p,a:analyze(x.p)}:x);render();
+}
+
+// ---------- trends ----------
+function renderTrend(){
+ const L=tokens.map(({p,a})=>{const v=p.volume||{},t=p.txns||{},tx=o=>(o?.buys||0)+(o?.sells||0);
+  const f5=v.h1?(v.m5||0)*12/v.h1:0,f1=v.h6?(v.h1||0)*6/v.h6:0,tf=tx(t.h1)?tx(t.m5)*12/tx(t.h1):0;
+  return{p,a,f5,f1,tf,heat:f5+f1+tf}}).filter(x=>x.a.liq>=5e3&&(x.f5>1.5||x.f1>1.5)).sort((a,b)=>b.heat-a.heat).slice(0,15);
+ $('#trendList').innerHTML=L.length?L.map(x=>`<div class="card" data-m="${x.p.baseToken.address}" data-go="1"><div class="row"><b>${esc(x.p.baseToken.symbol)}</b><span class="badge ${x.a.label}">${x.a.score} · ${LBL[x.a.label]}</span></div>
+  <div class="chips"><span>5m pace ${x.f5.toFixed(1)}× 1h</span><span>1h pace ${x.f1.toFixed(1)}× 6h</span><span>trades ${x.tf.toFixed(1)}×</span>${x.a.age!=null&&x.a.age<48?'<span>🌱 emerging (<48h)</span>':''}<span>Liq ${usd(x.a.liq)}</span></div></div>`).join(''):'<p class="mut">No accelerating tokens in the current scan (or nothing scanned yet).</p>';
+}
+
+// ---------- wallets ----------
+const SKIP=new Set(['So11111111111111111111111111111111111111112','EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v','Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB']);
+const okAddr=a=>/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(a);
+async function walletScan(){
+ const ws=[0,1,2].map(i=>$('#w'+i).value.trim()).filter(Boolean);S.set('wallets',ws);
+ if(ws.some(w=>!okAddr(w))){$('#wstat').textContent='Invalid address';return}
+ if(!ws.length){$('#wstat').textContent='Enter at least one wallet';return}
+ const seen=S.get('seen',{}),first=!Object.keys(seen).length,all=[];let fails=0;
+ for(const w of ws){$('#wstat').textContent='Reading '+w.slice(0,4)+'…';
+  try{const sigs=await rpc('getSignaturesForAddress',[w,{limit:8}]);
+   for(const g of sigs){if(g.err)continue;
+    try{const tx=await rpc('getTransaction',[g.signature,{encoding:'jsonParsed',maxSupportedTransactionVersion:0}]);if(!tx)continue;
+     const d={};(tx.meta.postTokenBalances||[]).forEach(b=>{if(b.owner===w)d[b.mint]=(d[b.mint]||0)+(b.uiTokenAmount.uiAmount||0)});
+     (tx.meta.preTokenBalances||[]).forEach(b=>{if(b.owner===w)d[b.mint]=(d[b.mint]||0)-(b.uiTokenAmount.uiAmount||0)});
+     Object.entries(d).filter(([m,x])=>!SKIP.has(m)&&Math.abs(x)>0).forEach(([m,x])=>{
+      const e={w,m,side:x>0?'BUY':'SELL',t:g.blockTime,sig:g.signature};all.push(e);
+      if(e.side==='BUY'&&!seen[g.signature+m]&&!first)addAlert('wallet',`Wallet ${w.slice(0,4)}…${w.slice(-4)} bought token ${m.slice(0,6)}…`,`https://dexscreener.com/solana/${m}`);
+      seen[g.signature+m]=1});
+    }catch{fails++}
+    await new Promise(r=>setTimeout(r,250))}
+  }catch(e){fails++;$('#wstat').textContent='RPC error: '+e.message}
+ }
+ S.set('seen',seen);$('#wstat').textContent=fails?`Done with ${fails} failed request(s) – public RPC may be rate-limiting`:'Updated '+new Date().toLocaleTimeString();
+ const byM={};all.filter(e=>e.side==='BUY').forEach(e=>{(byM[e.m]??=new Set()).add(e.w)});
+ const ov=Object.entries(byM).filter(([,s])=>s.size>1);
+ $('#wout').innerHTML=(ov.length?`<div class="card"><b>Overlap</b><p class="mut sm">Tokens bought by more than one tracked wallet:</p>${ov.map(([m,s])=>`<div><a target="_blank" rel="noopener" href="https://dexscreener.com/solana/${m}">${m.slice(0,8)}…</a> · ${s.size} wallets</div>`).join('')}</div>`:'')+
+  ws.map(w=>{const e=all.filter(x=>x.w===w),b=e.filter(x=>x.side==='BUY').length;return `<div class="card"><b>${w.slice(0,4)}…${w.slice(-4)}</b> <span class="mut sm">${b} buys · ${e.length-b} sells (last 8 txs)</span>${e.slice(0,10).map(x=>`<div class="sm"><span class="${x.side==='BUY'?'up':'dn'}">${x.side}</span> <a target="_blank" rel="noopener" href="https://dexscreener.com/solana/${x.m}">${x.m.slice(0,8)}…</a> <span class="mut">${x.t?new Date(x.t*1e3).toLocaleString():''}</span></div>`).join('')||'<div class="mut sm">No token activity found</div>'}</div>`}).join('')+
+  '<p class="mut sm">Pattern notes are descriptive only: copying a wallet’s trades carries the same risks, and wallets can be wash-trading or insiders.</p>';
+}
+
+// ---------- alerts ----------
+function checkAlerts(){
+ const snap=S.get('snap',{}),nf=S.get('notified',[]),ns={};
+ tokens.forEach(({p,a})=>{const m=p.baseToken.address,sym=p.baseToken.symbol;ns[m]={liq:a.liq};
+  if(snap[m]?.liq>0&&a.liq<snap[m].liq*.7)addAlert('liquidity',`${sym}: liquidity dropped ${Math.round((1-a.liq/snap[m].liq)*100)}% (${usd(snap[m].liq)} → ${usd(a.liq)})`,p.url);
+  if(a.score>=65&&a.liq>=1e4&&!nf.includes(m)){nf.push(m);addAlert('promising',`${sym}: score ${a.score}/100 (${LBL[a.label]}${a.checked?'':', security not yet checked'}). Not financial advice.`,p.url)}});
+ S.set('snap',ns);S.set('notified',nf.slice(-200));
+}
+function addAlert(type,msg,link){
+ if(cfg.off[type])return;alerts.unshift({type,msg,link,t:Date.now()});alerts=alerts.slice(0,100);S.set('alerts',alerts);drawAlerts();
+ if(cfg.relay)fetch(cfg.relay,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text:`MemeRadar: ${msg}\n${link||''}`})}).catch(()=>{});
+}
+function drawAlerts(){
+ $('#ac').textContent=alerts.length?`Alerts (${alerts.length})`:'Alerts';
+ const ic={promising:'🚀',wallet:'👛',liquidity:'🚨'};
+ $('#alist').innerHTML=alerts.map((a,i)=>`<div class="card"><div class="row"><span>${ic[a.type]} ${esc(a.msg)}</span></div><div class="row"><span class="mut sm">${new Date(a.t).toLocaleString()}</span><span><a target="_blank" rel="noopener" href="https://t.me/share/url?url=${encodeURIComponent(a.link||'https://dexscreener.com')}&text=${encodeURIComponent('MemeRadar: '+a.msg)}">Send to Telegram</a></span></div></div>`).join('')||'<p class="mut">No alerts yet. Alerts are generated from real scans and wallet reads while this page is open.</p>';
+ $('#tgs').textContent=cfg.relay?'relay URL set (push enabled while this page is open)':'not configured – needs a backend';
+}
+
+// ---------- wiring ----------
+$('#nav').onclick=e=>{const b=e.target.closest('button');if(!b)return;$$('nav button').forEach(x=>x.classList.toggle('on',x===b));$$('.tab').forEach(x=>x.classList.toggle('on',x.id===b.dataset.tab))};
+$('#go').onclick=scan;
+$('#auto').onchange=e=>{clearInterval(timer);if(e.target.checked)timer=setInterval(scan,6e4)};
+$('#filters').onclick=e=>{const f=e.target.dataset.f;if(f){filter=f;render()}};
+document.body.addEventListener('click',e=>{
+ const d=e.target.closest('[data-deep]');if(d)return deep(d.dataset.deep);
+ const c=e.target.closest('[data-copy]');if(c){navigator.clipboard?.writeText(c.dataset.copy);c.textContent='Copied';return}
+ if(e.target.closest('a,button,input'))return;
+ const k=e.target.closest('[data-m]');if(k){open=open===k.dataset.m?null:k.dataset.m;if(k.dataset.go){$$('nav button')[0].click()}render()}});
+$('#wsave').onclick=walletScan;
+$('#clr').onclick=()=>{alerts=[];S.set('alerts',[]);drawAlerts()};
+$$('[data-t]').forEach(i=>{i.checked=!cfg.off[i.dataset.t];i.onchange=()=>{cfg.off[i.dataset.t]=!i.checked;S.set('cfg',cfg)}});
+$('#relay').value=cfg.relay;$('#relay').onchange=e=>{cfg.relay=e.target.value.trim();S.set('cfg',cfg);drawAlerts()};
+$('#rpc').value=cfg.rpc;$('#rpc').onchange=e=>{cfg.rpc=e.target.value.trim()||'https://api.mainnet-beta.solana.com';S.set('cfg',cfg)};
+S.get('wallets',[]).forEach((w,i)=>$('#w'+i).value=w);
+drawAlerts();render();
+</script></body></html>
